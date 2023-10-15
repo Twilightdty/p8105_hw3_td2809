@@ -153,4 +153,94 @@ ggplot(ny_data, aes(x = response, y = data_value, fill = response)) +
   theme(legend.position = "right")
 ```
 The distributions of responses are similar for 2006 and 2010, with the value increasing from "Poor" to "Very good" and decreasing from "Very good" to "Excellent". Overall, the values within the same response increase from 2006 to 2010.
- 
+
+# Problem 3
+
+Load, tidy, merge, and otherwise organize the data sets.
+```{r}
+demographic =
+  read_csv("data/nhanes_covar.csv", skip = 4) |> 
+  janitor::clean_names() |> 
+  drop_na() |> 
+  filter(age > 20) |>
+  mutate(
+    sex = factor(recode(sex, "1" = "male", "2" = "female")),
+    education = recode(education, `1` = "Less than high school",`2` =  "High school equivalent",`3`  = "More than high school"),education = factor(education, levels = c("Less than high school", "High school equivalent", "More than high school")))
+
+accelerometer = 
+  read_csv("data/nhanes_accel.csv") |> 
+  janitor::clean_names() |> 
+  pivot_longer(
+    min1:min1440,
+    names_to = "minute",
+    values_to = "mims",
+    names_prefix = "min"
+  ) |> 
+  mutate(
+    minute = as.numeric(minute)
+  )
+
+mims = 
+  demographic |> 
+  left_join(accelerometer)
+str(mims)
+```
+Then, produce a reader-friendly table for the number of men and women in each education category.
+```{r}
+demographic |> 
+  count(education, sex) |> 
+  pivot_wider(
+    names_from = sex,
+    values_from = n
+  ) |> 
+  knitr::kable()
+```
+We can conclude that in the high school equivalent education category, there are more male participants than female. In the more than high school education category, there are slightly more female participants than male.
+
+Create a visualization of the age distributions for men and women in each education category.
+```{r}
+demographic |> 
+  ggplot(aes(x = sex, y = age, fill = sex)) +
+  geom_boxplot()+
+  facet_grid(.~ education) +
+  labs(                                          
+    title = "Age Distributions by Gender and Education",
+    x = "Educational Level",
+    y = "Age"
+  ) 
+```
+The plot shows that the age distributions of education levels of less than high school and more than high school between female and male are similar. The age of female for education levels of high school or equivalent is greater than that of male.
+
+```{r}
+mims_aggregated = mims |> 
+  group_by(seqn)|> 
+  summarise(activity = sum(mims)) |> 
+  left_join(demographic)
+
+mims_aggregated |> 
+  ggplot(aes(x = age, y = activity, color = sex)) +   
+  geom_point(alpha=0.5) +
+  facet_grid(.~ education) +                                  
+  geom_smooth(se = FALSE) +
+  labs(                                          
+    title = "Total Activities By Age, Gender and Education Level",
+    x = "Age",
+    y = "Total Activity"
+  ) 
+```
+- The plot shows that there are overall decreasing trends in all education levels for both female and male. 
+- For education level high school equivalent and more than high school, the total activity level of female is generally higher than that of male. 
+```{r}
+mims |> 
+  ggplot(aes(x = minute, y = mims, color = sex)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(se = FALSE) +
+  labs(
+    title = "24-hour mims for each Education Level",
+    x = "minutes",
+    y = "mims"
+  ) +
+  facet_grid(.~ education)
+```
+- We can see from the distributions for female and male are similar. We can also see that the smooth lines for different educational levels are similar, while the 24-hour activities for people in “More than high school” category is relatively higher than other education classes. 
+- The activity level starts to increase around 250 minutes, and remains in high value until around 1250 minutes.Moreover, male in “More than high school” level have significantly higher MIMS values from 1000 to 1440 minutes than famale.
